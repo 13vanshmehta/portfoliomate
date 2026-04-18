@@ -3,12 +3,54 @@ import { useOutletContext } from 'react-router-dom';
 import { 
   Search, Image as ImageIcon, Paperclip, ChevronDown, 
   ThumbsUp, MessageCircle, Send, MoreHorizontal, Download, Pin,
-  Megaphone, X, Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, Link2, Type, FileCheck, Menu, Trash2, Edit2
+  Megaphone, X, FileCheck, Menu, Trash2, Edit2
 } from 'lucide-react';
 import { getAnnouncements, createAnnouncement, likeAnnouncement, commentAnnouncement, getComments, deleteAnnouncement, updateAnnouncement } from '../api/announcement';
 import { motion, AnimatePresence } from 'framer-motion';
+import DOMPurify from 'dompurify';
+import RichTextEditor from '../components/RichTextEditor';
 
 const PREDEFINED_TAGS = ['PORTFOLIOMATE', 'STARTUP SCREENING', 'UPDATES', 'EVENTS', 'GENERAL', 'IMPORTANT'];
+
+const HTML_TAG_REGEX = /<\/?[a-z][\s\S]*>/i;
+
+const getPlainTextFromHtml = (html = '') => {
+  if (!html) return '';
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  return (doc.body.textContent || '').replace(/\u00a0/g, ' ').trim();
+};
+
+const isBodyEmpty = (html = '') => getPlainTextFromHtml(html).length === 0;
+
+const normalizeBodyForEditor = (body = '') => {
+  if (!body) return '';
+  if (HTML_TAG_REGEX.test(body)) return body;
+
+  const encoded = body
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/\n/g, '<br />');
+
+  return `<p>${encoded}</p>`;
+};
+
+const getSanitizedBodyHtml = (body = '') => {
+  if (!body) return '';
+
+  if (HTML_TAG_REGEX.test(body)) {
+    return DOMPurify.sanitize(body, {
+      USE_PROFILES: { html: true },
+      ADD_ATTR: ['target', 'rel', 'style', 'data-list-style'],
+    });
+  }
+
+  const escaped = DOMPurify.sanitize(body, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  return escaped.replace(/\n/g, '<br />');
+};
 
 export default function Announcements() {
   const { user, toggleSidebar } = useOutletContext();
@@ -131,7 +173,7 @@ export default function Announcements() {
      setCreateData({
        id: announcement.announcementId,
        title: announcement.title || '',
-       body: announcement.body || '',
+       body: normalizeBodyForEditor(announcement.body || ''),
        tags: announcement.classificationTags || [],
        tagInput: '',
        isPinned: announcement.isPinned || false,
@@ -142,7 +184,7 @@ export default function Announcements() {
   };
 
   const handleCreateAnnouncement = async () => {
-    if (!createData.title.trim() || !createData.body.trim()) return;
+    if (!createData.title.trim() || isBodyEmpty(createData.body)) return;
 
     setIsSubmitting(true);
     try {
@@ -332,36 +374,12 @@ export default function Announcements() {
                 </div>
 
                 {/* Editor Container */}
-                <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                   {/* Editor Toolbar (UI visual only for plain text currently) */}
-                   <div className="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center space-x-4 overflow-x-auto hidden-scrollbar">
-                     <button className="flex items-center text-sm font-semibold text-gray-700 hover:bg-gray-100 px-2 py-1 rounded">
-                       Normal <ChevronDown size={14} className="ml-1 text-gray-400" />
-                     </button>
-                     <div className="w-[1px] h-5 bg-gray-200"></div>
-                     <div className="flex items-center space-x-1 text-gray-500">
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><Bold size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><Italic size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><UnderlineIcon size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><Strikethrough size={16} /></button>
-                     </div>
-                     <div className="w-[1px] h-5 bg-gray-200"></div>
-                     <div className="flex items-center space-x-1 text-gray-500">
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><List size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><ListOrdered size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><Link2 size={16} /></button>
-                       <button className="p-1.5 hover:bg-gray-100 rounded transition-colors"><Type size={16} /></button>
-                     </div>
-                   </div>
-                   
-                   {/* Textarea block */}
-                   <textarea
-                     value={createData.body}
-                     onChange={(e) => setCreateData(prev => ({ ...prev, body: e.target.value }))}
-                     placeholder="What would you like to share?"
-                     className="w-full min-h-[220px] p-5 outline-none resize-none text-[0.95rem] text-gray-800 leading-relaxed bg-[#fafafa]/30 focus:bg-white transition-colors"
-                   />
-                </div>
+                <RichTextEditor
+                  value={createData.body}
+                  onChange={(nextBody) => setCreateData(prev => ({ ...prev, body: nextBody }))}
+                  placeholder="What would you like to share?"
+                  minHeight={220}
+                />
 
                 {/* Bottom Config row */}
                 <div className="grid grid-cols-2 gap-6 pt-2">
@@ -429,7 +447,7 @@ export default function Announcements() {
                  </button>
                  <button 
                    onClick={handleCreateAnnouncement}
-                   disabled={isSubmitting || !createData.title.trim() || !createData.body.trim()}
+                   disabled={isSubmitting || !createData.title.trim() || isBodyEmpty(createData.body)}
                    className="bg-[#242b5c] hover:bg-[#1a1f44] text-white font-bold px-8 py-3 rounded-xl shadow-md disabled:bg-gray-300 disabled:shadow-none transition-all flex items-center space-x-2 text-[0.95rem]"
                  >
                    {isSubmitting ? (
@@ -628,10 +646,11 @@ export default function Announcements() {
                     {/* Content */}
                     <div className="mb-4">
                       <h3 className="text-[1.2rem] font-extrabold text-gray-900 mb-2">{announcement.title}</h3>
-                      <div className="text-gray-600 text-[0.95rem] leading-relaxed whitespace-pre-wrap">
-                        {announcement.body}
-                      </div>
-                      {announcement.body?.length > 200 && (
+                      <div
+                        className="announcement-body text-gray-600 text-[0.95rem] leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: getSanitizedBodyHtml(announcement.body || '') }}
+                      />
+                      {getPlainTextFromHtml(normalizeBodyForEditor(announcement.body || '')).length > 200 && (
                         <button className="text-indigo-600 font-bold text-sm hover:underline mt-2">Read More...</button>
                       )}
                     </div>
