@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node src/server.js",
+    "dev:watch": "nodemon src/server.js",
     "test": "jest --coverage",
     "test:cloudinary": "node -e \"require('dotenv').config(); require('./src/config/cloudinary').testConnection();\""
   },
@@ -51,7 +52,7 @@
     "typescript": "^6.0.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "type": "commonjs"
 }
