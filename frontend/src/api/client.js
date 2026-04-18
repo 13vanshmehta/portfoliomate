@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+const apiBasePath = import.meta.env.VITE_API_BASE_PATH || '/api/v1';
+const legacyApiUrl = import.meta.env.VITE_API_URL;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  baseURL: legacyApiUrl || `${apiBaseUrl}${apiBasePath}`,
   headers: {
     'Content-Type': 'application/json',
   },
